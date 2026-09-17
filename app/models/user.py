@@ -9,3 +9,5 @@ class User(Base):
     first_name: Mapped[str] = mapped_column(String(100))
     last_name: Mapped[str] = mapped_column(String(100))
     email: Mapped[str] = mapped_column(String(255), unique=True)
+    phone_number: Mapped[str] = mapped_column(String(20), unique=True)
+

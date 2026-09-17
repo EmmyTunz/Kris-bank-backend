@@ -8,6 +8,7 @@ from sqlalchemy import pool
 from alembic import context
 from app.database.base import Base
 from app.models.user import User
+from app.models.account import Account
 
 load_dotenv()
 database_url = os.getenv("DATABASE_URL")
