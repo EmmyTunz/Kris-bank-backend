@@ -18,3 +18,7 @@ class TransactionResponse(BaseModel):
     amount: Decimal
     transaction_type: str
     created_at: datetime
+
+class TransferRequest(BaseModel):
+    account_number: str
+    amount: Decimal = Field(gt=0)
