@@ -1,4 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import desc
+
 from sqlalchemy.orm import Session
 
 from app.database.session import get_db
@@ -6,7 +8,7 @@ from app.models import Transaction
 from app.models.account import Account
 from app.models.user import User
 from app.security.auth import get_current_user
-from app.schemas.accounts import AccountResponse, DepositRequest, WithdrawalRequest
+from app.schemas.accounts import AccountResponse, DepositRequest, WithdrawalRequest, TransactionResponse
 from app.utils.transaction_reference import generate_transaction_reference
 
 router = APIRouter(
@@ -85,7 +87,7 @@ def deposit(
         "reference": transaction.reference
     }
 
-@router.post("")
+@router.post("/me/withdraw")
 def withdraw(
         data: WithdrawalRequest,
         current_user: User = Depends(get_current_user),
@@ -132,5 +134,59 @@ def withdraw(
         "reference": transaction.reference
     }
 
+@router.get("/transactions", response_model=list[TransactionResponse])
+def get_transactions(
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
+):
+    account = (
+        db.query(Account)
+        .filter(Account.user_id == current_user.id)
+        .first()
+    )
+    if not account:
+        raise HTTPException(
+            status_code=404,
+            detail="Account not found"
+        )
+    transactions = (
+        db.query(Transaction)
+        .filter(Transaction.account_id == account.id)
+        .order_by(desc(Transaction.created_at))
+        .all()
+    )
+
+    return transactions
+
+@router.get("/transaction/{reference}", response_model=TransactionResponse)
+def get_transaction(
+        reference: str,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
+):
+    account = (
+        db.query(Account)
+        .filter(Account.user_id == current_user.id)
+        .first()
+    )
+    if not account:
+        raise HTTPException(
+            status_code=404,
+            detail="Account not found"
+        )
+
+    transaction = (
+        db.query(Transaction)
+        .filter(Transaction.reference == reference,
+                Transaction.account_id == account.id
+        )
+        .first()
+    )
+    if not transaction:
+        raise HTTPException(
+            status_code=404,
+            detail="Transaction not found"
+        )
+    return transaction
 
 

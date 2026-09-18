@@ -1,7 +1,7 @@
 from decimal import Decimal
 from pydantic import BaseModel, Field
 
-import datetime
+from datetime import datetime
 
 class AccountResponse(BaseModel):
     account_number: str
