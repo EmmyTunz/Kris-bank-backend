@@ -11,4 +11,5 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True)
     phone_number: Mapped[str] = mapped_column(String(20), unique=True)
     password_hash: Mapped[str] = mapped_column(String(255))
+    pin_hash: Mapped[str] = mapped_column(String(255), nullable=True)
 
