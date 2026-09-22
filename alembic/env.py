@@ -10,6 +10,7 @@ from app.database.base import Base
 from app.models.user import User
 from app.models.account import Account
 from app.models.transaction import Transaction
+from app.models.rates import Rate
 
 load_dotenv()
 database_url = os.getenv("DATABASE_URL")
