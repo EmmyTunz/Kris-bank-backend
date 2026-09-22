@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, HTTPException
 from fastapi.params import Depends
 from sqlalchemy.orm import Session
@@ -5,13 +6,19 @@ from sqlalchemy.exc import IntegrityError
 
 from app.database.session import get_db
 from app.models.user import User
-from app.schemas.auth import RegisterRequest, LoginRequest, ChangePinRequest, ChangePasswordRequest, UpdateProfileRequest
+from app.schemas.auth import RegisterRequest, LoginRequest, ChangePinRequest, ChangePasswordRequest, \
+    UpdateProfileRequest, RefreshTokenRequest
 from app.security.password import hash_password, verify_password
-from app.security.jwt import create_access_token
+from app.security.jwt import create_access_token, create_refresh_token, hash_refresh_token
 from app.security.auth import get_current_user
 from app.models.account import Account
 from app.utils.account_number import generate_account_number
 from app.security.pin import hash_pin, verify_pin
+from app.models.refresh_token import RefreshToken
+
+import jwt
+from app.core.config import JWT_ALGORITHM, JWT_SECRET_KEY
+
 
 
 
@@ -72,8 +79,19 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
         )
 
     access_token = create_access_token(user.id)
+    refresh_token_login = create_refresh_token(user.id)
+
+    refresh_token_record = RefreshToken(
+        token_hash=hash_refresh_token(refresh_token_login),
+        user_id = user.id,
+        expires_at=datetime.now(timezone.utc) + timedelta(days=1)
+    )
+
+    db.add(refresh_token_record)
+    db.commit()
     return {
         "access_token": access_token,
+        "refresh_token": refresh_token_login,
         "token_type": "bearer"
     }
 
@@ -167,4 +185,108 @@ def change_profile(
         "last_name": current_user.last_name,
         "email": current_user.email,
         "phone_number": current_user.phone_number
+    }
+
+# user log out
+@router.post("/logout")
+def logout():
+    return {
+        "message": "Logged out successfully"
+    }
+
+@router.post("/refresh")
+def refresh_token(data: RefreshTokenRequest, db: Session = Depends(get_db)):
+    # get refresh_token from db
+    token_hash = hash_refresh_token(data.refresh_token)
+
+    refresh_token_record = (
+        db.query(RefreshToken)
+        .filter(RefreshToken.token_hash == token_hash)
+        .first()
+    )
+
+    # check db for hashed refresh token
+    if not refresh_token_record:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid refresh token"
+        )
+
+    # is revoked?
+    if refresh_token_record.revoked:
+        raise HTTPException(
+            status_code=401,
+            detail="Refresh token has been revoked"
+        )
+
+    # is expired?
+    if refresh_token_record.expires_at < datetime.now(timezone.utc).replace(tzinfo=None):
+        raise HTTPException(
+            status_code=401,
+            detail="Refresh token has expired"
+        )
+
+    # get user_id
+    user_id = refresh_token_record.user_id
+
+    access_token = create_access_token(user_id)
+    new_refresh_token = create_refresh_token(user_id)
+
+    # revoke old refresh token
+    refresh_token_record.revoked = True
+
+    # store new refresh token
+    new_refresh_token_record = RefreshToken(
+        token_hash=hash_refresh_token(new_refresh_token),
+        user_id=user_id,
+        expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=1)
+    )
+
+    db.add(new_refresh_token_record)
+
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to refresh token"
+        )
+
+    # try:
+    #     payload = jwt.decode(
+    #         data.refresh_token,
+    #         JWT_SECRET_KEY,
+    #         algorithms=[JWT_ALGORITHM]
+    #     )
+    # except jwt.InvalidTokenError:
+    #     raise HTTPException(
+    #         status_code=401,
+    #         detail="Invalid or expired refresh token"
+    #     )
+    #
+    # # check for refresh token
+    # token_type = payload.get("type")
+    # if token_type != "refresh":
+    #     raise HTTPException(
+    #         status_code=401,
+    #         detail="Invalid refresh token"
+    #     )
+    #
+    # # get user id, then create new access token
+    # user_id = payload.get("sub")
+    #
+    # if not user_id:
+    #     raise HTTPException(
+    #         status_code= 401,
+    #         detail="Invalid refresh token"
+    #     )
+    #
+    # # create new access token
+    # access_token = create_access_token(int(user_id))
+
+    return {
+        "access_token": access_token,
+        "refresh_token": new_refresh_token,
+        "token_type": "bearer"
     }
