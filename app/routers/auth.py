@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from app.database.session import get_db
 from app.models.user import User
 from app.schemas.auth import RegisterRequest, LoginRequest, ChangePinRequest, ChangePasswordRequest, \
-    UpdateProfileRequest, RefreshTokenRequest
+    UpdateProfileRequest, RefreshTokenRequest, LogoutRequest
 from app.security.password import hash_password, verify_password
 from app.security.jwt import create_access_token, create_refresh_token, hash_refresh_token
 from app.security.auth import get_current_user
@@ -189,7 +189,28 @@ def change_profile(
 
 # user log out
 @router.post("/logout")
-def logout():
+def logout(
+        data: LogoutRequest,
+        db: Session = Depends(get_db)
+):
+    # hash and compare refresh token with db one
+    token_hash = hash_refresh_token(data.refresh_token)
+
+    refresh_token_record = (
+        db.query(RefreshToken)
+        .filter(RefreshToken.token_hash == token_hash)
+        .first()
+    )
+
+    if not refresh_token_record:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid refresh token"
+        )
+
+    refresh_token_record.revoked = True
+
+    db.commit()
     return {
         "message": "Logged out successfully"
     }
