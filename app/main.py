@@ -11,9 +11,19 @@ load_dotenv()
 
 app = FastAPI(title="kris Bank Api")
 
+DEFAULT_ORIGINS = ["http://127.0.0.1:5500", "http://localhost:5500"]
+
+
+def get_cors_origins():
+    raw = os.getenv("CORS_ORIGINS", "")
+    origins = [o.strip().rstrip("/") for o in raw.split(",")]
+    origins = [o for o in origins if o]
+    return origins or DEFAULT_ORIGINS
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://127.0.0.1:5500", os.getenv("CORS_ORIGIN")],
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
