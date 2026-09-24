@@ -1,5 +1,3 @@
-import os
-from dotenv import load_dotenv
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
@@ -13,13 +11,11 @@ from app.models.transaction import Transaction
 from app.models.rates import Rate
 from app.models.refresh_token import RefreshToken
 
-load_dotenv()
-database_url = os.getenv("DATABASE_URL")
+from app.database.db_config import DATABASE_URL, CONNECT_ARGS
 
-# this is the Alembic Config object, which provides
-# access to the values within the .ini file in use.
+# this is the Alembic Config object...
 config = context.config
-config.set_main_option("sqlalchemy.url", database_url)
+config.set_main_option("sqlalchemy.url", DATABASE_URL.replace("%", "%%"))
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -73,6 +69,7 @@ def run_migrations_online() -> None:
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args=CONNECT_ARGS,
     )
 
     with connectable.connect() as connection:

@@ -1,13 +1,9 @@
-import os
-from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-load_dotenv()
+from app.database.db_config import DATABASE_URL, ENGINE_OPTIONS
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-engine = create_engine(DATABASE_URL)
+engine = create_engine(DATABASE_URL, **ENGINE_OPTIONS)
 
 SessionLocal = sessionmaker(
     bind=engine,
@@ -15,12 +11,9 @@ SessionLocal = sessionmaker(
     autocommit=False,
 )
 
-with engine.connect() as connection:
-    print("Database connected successfully!")
 
 def get_db():
     db = SessionLocal()
-
     try:
         yield db
     finally:
